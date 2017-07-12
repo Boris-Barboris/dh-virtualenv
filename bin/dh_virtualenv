@@ -86,8 +86,6 @@ def main():
         if options.activate_venv:
             _info('Activating virtualenv')
             deploy.activate()
-        else:
-            assert False
 
         _info('Installing dependencies')
         deploy.install_dependencies()

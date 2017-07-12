@@ -35,6 +35,7 @@ class Deployment(object):
                  package,
                  extra_urls=[],
                  preinstall=[],
+                 postinstall=[],
                  pip_tool='pip',
                  upgrade_pip=False,
                  index_url=None,
@@ -69,6 +70,7 @@ class Deployment(object):
         self.local_bin_dir = os.path.join(self.virtualenv_dir, 'local', 'bin')
 
         self.preinstall = preinstall
+        self.postinstall = postinstall
         self.upgrade_pip = upgrade_pip
         self.extra_virtualenv_arg = extra_virtualenv_arg
         self.log_file = tempfile.NamedTemporaryFile()
@@ -121,6 +123,7 @@ class Deployment(object):
         return cls(package,
                    extra_urls=options.extra_index_url,
                    preinstall=options.preinstall,
+                   postinstall=options.postinstall,
                    pip_tool=options.pip_tool,
                    upgrade_pip=options.upgrade_pip,
                    index_url=options.index_url,
@@ -217,6 +220,9 @@ class Deployment(object):
         requirements_path = os.path.join(self.sourcedirectory, self.requirements_filename)
         if os.path.exists(requirements_path):
             subprocess.check_call(self.pip('-r', requirements_path))
+
+        if self.postinstall:
+            subprocess.check_call(self.pip(*self.postinstall))
 
     def run_tests(self):
         python = self.venv_bin('python')
