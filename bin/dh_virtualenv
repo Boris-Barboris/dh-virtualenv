@@ -50,6 +50,7 @@ def main():
     verbose = options.verbose or os.environ.get('DH_VERBOSE') == '1'
     if verbose:
         log.setLevel(logging.DEBUG)
+        options.verbose = True
 
     if 'nocheck' in os.environ.get('DEB_BUILD_OPTIONS', ''):
         do_test = False
@@ -82,6 +83,12 @@ def main():
         _info('Creating virtualenv')
         deploy.create_virtualenv()
 
+        if options.activate_venv:
+            _info('Activating virtualenv')
+            deploy.activate()
+        else:
+            assert False
+
         _info('Installing dependencies')
         deploy.install_dependencies()
 
@@ -97,6 +104,10 @@ def main():
         deploy.fix_activate_path()
         deploy.fix_shebangs()
         deploy.fix_local_symlinks()
+
+        if options.activate_venv:
+            _info('Deactivating virtualenv')
+            deploy.deactivate()
 
         _info('dh-virtualenv: All done!')
 

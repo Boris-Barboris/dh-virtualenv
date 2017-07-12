@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import warnings
 
 ROOT_ENV_KEY = 'DH_VIRTUALENV_INSTALL_ROOT'
 DEFAULT_INSTALL_DIR = '/opt/venvs/'
@@ -47,7 +48,8 @@ class Deployment(object):
                  use_system_packages=False,
                  skip_install=False,
                  install_suffix=None,
-                 requirements_filename='requirements.txt'):
+                 requirements_filename='requirements.txt',
+                 activate_venv=False):
 
         self.package = package
         install_root = os.environ.get(ROOT_ENV_KEY, DEFAULT_INSTALL_DIR)
@@ -58,13 +60,13 @@ class Deployment(object):
 
         if install_suffix is None:
             self.virtualenv_install_dir = os.path.join(install_root, self.package)
-            self.package_dir = os.path.join(self.debian_root, package)
+            self.virtualenv_dir = os.path.join(self.debian_root, package)
         else:
             self.virtualenv_install_dir = os.path.join(install_root, install_suffix)
-            self.package_dir = os.path.join(self.debian_root, install_suffix)
+            self.virtualenv_dir = os.path.join(self.debian_root, install_suffix)
 
-        self.bin_dir = os.path.join(self.package_dir, 'bin')
-        self.local_bin_dir = os.path.join(self.package_dir, 'local', 'bin')
+        self.bin_dir = os.path.join(self.virtualenv_dir, 'bin')
+        self.local_bin_dir = os.path.join(self.virtualenv_dir, 'local', 'bin')
 
         self.preinstall = preinstall
         self.upgrade_pip = upgrade_pip
@@ -78,13 +80,10 @@ class Deployment(object):
         self.use_system_packages = use_system_packages
         self.skip_install = skip_install
         self.requirements_filename = requirements_filename
+        self.activate_venv = activate_venv
+        self.pip_tool = pip_tool
+        self._activated = False
 
-        # We need to prefix the pip run with the location of python
-        # executable. Otherwise it would just blow up due to too long
-        # shebang-line.
-        python = self.venv_bin('python')
-        self.pip_preinstall_prefix = [python, self.venv_bin('pip')]
-        self.pip_prefix = [python, self.venv_bin(pip_tool)]
         self.pip_args = ['install']
 
         if self.verbose:
@@ -101,9 +100,24 @@ class Deployment(object):
         # Add in any user supplied pip args
         self.pip_args.extend(extra_pip_arg)
 
+    @property
+    def pip_preinstall_prefix(self):
+        if self._activated:
+            return ['pip']
+        else:
+            python = self.venv_bin('python')
+            return [python, self.venv_bin('pip')]
+
+    @property
+    def pip_prefix(self):
+        if self._activated:
+            return [self.pip_tool]
+        else:
+            python = self.venv_bin('python')
+            return [python, self.venv_bin(self.pip_tool)]
+
     @classmethod
     def from_options(cls, package, options):
-        verbose = options.verbose or os.environ.get('DH_VERBOSE') == '1'
         return cls(package,
                    extra_urls=options.extra_index_url,
                    preinstall=options.preinstall,
@@ -114,13 +128,14 @@ class Deployment(object):
                    python=options.python,
                    builtin_venv=options.builtin_venv,
                    sourcedirectory=options.sourcedirectory,
-                   verbose=verbose,
+                   verbose=options.verbose,
                    extra_pip_arg=options.extra_pip_arg,
                    extra_virtualenv_arg=options.extra_virtualenv_arg,
                    use_system_packages=options.use_system_packages,
                    skip_install=options.skip_install,
                    install_suffix=options.install_suffix,
-                   requirements_filename=options.requirements_filename)
+                   requirements_filename=options.requirements_filename,
+                   activate_venv=options.activate_venv)
 
     def clean(self):
         shutil.rmtree(self.debian_root)
@@ -136,6 +151,7 @@ class Deployment(object):
             else:
                 virtualenv.append('--no-site-packages')
 
+            # (TODO) deprecated in modern virtualenv
             if self.setuptools:
                 virtualenv.append('--setuptools')
 
@@ -149,8 +165,34 @@ class Deployment(object):
             if self.extra_virtualenv_arg:
                 virtualenv.extend(self.extra_virtualenv_arg)
 
-        virtualenv.append(self.package_dir)
+        virtualenv.append(self.virtualenv_dir)
         subprocess.check_call(virtualenv)
+
+    def activate(self):
+        """Simulate virtualenv activation"""
+        assert self.activate_venv
+        assert not self._activated
+        self._old_virtual_env = os.environ.get("VIRTUAL_ENV", None)
+        os.environ["VIRTUAL_ENV"] = str(self.virtualenv_dir)
+        self._old_virtual_path = os.environ["PATH"]
+        os.environ["PATH"] = str(self.bin_dir + ':' + self._old_virtual_path)
+        # unset PYTHONHOME if set
+        if "PYTHONHOME" in os.environ:
+            self._old_pythonhome = os.environ.pop("PYTHONHOME")
+        else:
+            self._old_pythonhome = None
+        self._activated = True
+
+    def deactivate(self):
+        """Simulate virtualenv deactivation"""
+        assert self.activate_venv
+        assert self._activated
+        if self._old_virtual_env:
+            os.environ["VIRTUAL_ENV"] = str(self._old_virtual_env)
+        os.environ["PATH"] = self._old_virtual_path
+        if self._old_pythonhome:
+            os.environ["PYTHONHOME"] = str(self._old_pythonhome)
+        self._activated = False
 
     def venv_bin(self, binary_name):
         return os.path.abspath(os.path.join(self.bin_dir, binary_name))
@@ -243,10 +285,10 @@ class Deployment(object):
         # Specifically it might point at the build environment that created it!
         # Make those links relative
         # See https://github.com/pypa/virtualenv/commit/5cb7cd652953441a6696c15bdac3c4f9746dfaa1
-        local_dir = os.path.join(self.package_dir, "local")
+        local_dir = os.path.join(self.virtualenv_dir, "local")
         if not os.path.isdir(local_dir):
             return
-        elif os.path.samefile(self.package_dir, local_dir):
+        elif os.path.samefile(self.virtualenv_dir, local_dir):
             # "local" points directly to its containing directory
             os.unlink(local_dir)
             os.symlink(".", local_dir)

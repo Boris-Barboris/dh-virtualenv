@@ -73,6 +73,12 @@ def _check_for_deprecated_options(
         parser.values.setuptools_test = opt_str != '--no-test'
         setattr(parser.values, '_test_flag_seen', True)
 
+def _misc_deprecated_options(option, opt_str, value, parser, *args, **kwargs):
+    if opt_str in ('-s', '--setuptools'):
+        warnings.warn('Use of --setuptools has no effect in modern '
+                      'virtualenv, setuptools are installed by default.',
+                      DeprecationWarning)
+
 
 def get_default_parser():
     usage = '%prog [options]'
@@ -83,8 +89,13 @@ def get_default_parser():
                       help='do not act on the specified package')
     parser.add_option('-v', '--verbose', action='store_true',
                       default=False, help='Turn on verbose mode')
-    parser.add_option('-s', '--setuptools', action='store_true',
-                      default=False, help='Use Setuptools instead of Distribute')
+    parser.add_option('--activate_venv', action='store_true', default=False,
+                      dest="activate_venv", help='Simulate virtualenv '
+                      'activation during installation.')
+    parser.add_option('-s', '--setuptools', action='callback',
+                      default=False, callback=_misc_deprecated_options,
+                      dest="setuptools",
+                      help='(DEPRECATED) Use Setuptools instead of Distribute')
     parser.add_option('--extra-index-url', action='append',
                       help='extra index URL to pass to pip.',
                       default=[])
