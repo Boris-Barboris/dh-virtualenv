@@ -73,39 +73,42 @@ def main():
         _info('Processing package...')
         deploy = Deployment.from_options(package, options)
 
-        if options.autoscripts:
-            _info('Adding autoscripts...')
-            dh.autoscript(package, 'postinst', 'postinst-dh-virtualenv', _shell_vars(
-                package=package,
-                install_dir=deploy.virtualenv_install_dir,
-            ))
+        # check whether we just want to fixup binaries
+        if not options.only_fixes:
+            if options.autoscripts:
+                _info('Adding autoscripts...')
+                dh.autoscript(package, 'postinst', 'postinst-dh-virtualenv', _shell_vars(
+                    package=package,
+                    install_dir=deploy.virtualenv_install_dir,
+                ))
 
-        _info('Creating virtualenv')
-        deploy.create_virtualenv()
+            _info('Creating virtualenv')
+            deploy.create_virtualenv()
 
-        if options.activate_venv:
-            _info('Activating virtualenv')
-            deploy.activate()
+            if options.activate_venv:
+                _info('Activating virtualenv')
+                deploy.activate()
 
-        _info('Installing dependencies')
-        deploy.install_dependencies()
+            _info('Installing dependencies')
+            deploy.install_dependencies()
 
-        _info('Installing package')
-        deploy.install_package()
-        if do_test:
-            _info('Running tests')
-            deploy.run_tests()
-        else:
-            _info('Skipped tests')
+            _info('Installing package')
+            deploy.install_package()
+            if do_test:
+                _info('Running tests')
+                deploy.run_tests()
+            else:
+                _info('Skipped tests')
 
-        _info('Fixing paths')
-        deploy.fix_activate_path()
-        deploy.fix_shebangs()
-        deploy.fix_local_symlinks()
+            if options.activate_venv:
+                _info('Deactivating virtualenv')
+                deploy.deactivate()
 
-        if options.activate_venv:
-            _info('Deactivating virtualenv')
-            deploy.deactivate()
+        if not options.skip_fixes:
+            _info('Fixing paths')
+            deploy.fix_activate_path()
+            deploy.fix_shebangs()
+            deploy.fix_local_symlinks()
 
         _info('dh-virtualenv: All done!')
 

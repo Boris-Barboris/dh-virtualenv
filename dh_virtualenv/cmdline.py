@@ -89,9 +89,15 @@ def get_default_parser():
                       help='do not act on the specified package')
     parser.add_option('-v', '--verbose', action='store_true',
                       default=False, help='Turn on verbose mode')
-    parser.add_option('--activate_venv', action='store_true', default=False,
+    parser.add_option('--activate-venv', action='store_true', default=False,
                       dest="activate_venv", help='Simulate virtualenv '
                       'activation during installation.')
+    parser.add_option('--skip-fixes', action='store_true', default=False,
+                      dest="skip_fixes", help='Skip link and shebang fixup '
+                      'stage, effectively leaving virtualenv intact.')
+    parser.add_option('--only-fixes', action='store_true', default=False,
+                      dest="only_fixes", help='Only run shebang and link '
+                      'fixing routines. Useful in combination with --skip-fixes.')
     parser.add_option('-s', '--setuptools', action='callback',
                       default=False, callback=_misc_deprecated_options,
                       dest="setuptools",
