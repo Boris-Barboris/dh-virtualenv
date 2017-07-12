@@ -1,3 +1,9 @@
+dh-virtualenv (1.1-1ubuntu1) unstable; urgency=low
+
+  * Virtualenv activation, separation of venv fixup.
+
+ -- Boris-Barboris <ismailsiege@gmail.com>  Wed, 12 Jul 2017 20:45:32 +0000
+
 dh-virtualenv (1.0-1) unstable; urgency=medium
 
   * New upstream release
